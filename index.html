@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CryptoSwap Pro</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-messaging.js"></script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        }
+        .card-hover {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div id="app" class="container mx-auto p-4">
+        <!-- Barra de Navegação -->
+        <nav class="gradient-bg text-white p-4 shadow-lg">
+            <div class="container mx-auto flex justify-between items-center">
+                <a href="#" class="text-2xl font-bold animate__animated animate__fadeInLeft">
+                    <i class="fas fa-coins"></i> CryptoSwap Pro
+                </a>
+                <button @click="toggleMenu" class="lg:hidden">
+                    <i class="fas fa-bars text-2xl"></i>
+                </button>
+                <div :class="{'hidden': !menuOpen, 'block': menuOpen}" class="lg:flex lg:items-center">
+                    <a href="#" class="block mt-4 lg:inline-block lg:mt-0 text-white hover:text-gray-200 mr-4">
+                        <i class="fas fa-home"></i> Home
+                    </a>
+                    <a href="#" class="block mt-4 lg:inline-block lg:mt-0 text-white hover:text-gray-200 mr-4">
+                        <i class="fas fa-chart-line"></i> Mercado
+                    </a>
+                    <a href="#" class="block mt-4 lg:inline-block lg:mt-0 text-white hover:text-gray-200">
+                        <i class="fas fa-cog"></i> Configurações
+                    </a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Autenticação -->
+        <div id="auth-section" class="bg-white p-6 rounded-lg shadow-lg mt-8 card-hover">
+            <h3 class="text-xl font-bold mb-4">
+                <i class="fas fa-user"></i> Autenticação
+            </h3>
+            <div id="login-form">
+                <input type="email" id="email" placeholder="Email" class="w-full p-2 border rounded mb-2">
+                <input type="password" id="password" placeholder="Senha" class="w-full p-2 border rounded mb-2">
+                <button onclick="login()" class="gradient-bg text-white p-2 rounded w-full hover:bg-blue-700">
+                    <i class="fas fa-sign-in-alt"></i> Entrar
+                </button>
+                <p class="text-center mt-2">
+                    Não tem uma conta? <a href="#" onclick="showRegister()" class="text-blue-600 hover:underline">Registre-se</a>
+                </p>
+            </div>
+            <div id="register-form" class="hidden">
+                <input type="email" id="register-email" placeholder="Email" class="w-full p-2 border rounded mb-2">
+                <input type="password" id="register-password" placeholder="Senha" class="w-full p-2 border rounded mb-2">
+                <button onclick="register()" class="gradient-bg text-white p-2 rounded w-full hover:bg-blue-700">
+                    <i class="fas fa-user-plus"></i> Registrar
+                </button>
+                <p class="text-center mt-2">
+                    Já tem uma conta? <a href="#" onclick="showLogin()" class="text-blue-600 hover:underline">Entrar</a>
+                </p>
+            </div>
+        </div>
+
+        <!-- Conectar Carteira -->
+        <div class="bg-white p-6 rounded-lg shadow-lg mt-8 card-hover">
+            <h3 class="text-xl font-bold mb-4">
+                <i class="fas fa-wallet"></i> Conectar Carteira
+            </h3>
+            <button id="connect-wallet" class="gradient-bg text-white p-2 rounded w-full hover:bg-blue-700">
+                <i class="fas fa-wallet"></i> Conectar MetaMask
+            </button>
+        </div>
+
+        <!-- Gráfico de Preços -->
+        <div class="bg-white p-6 rounded-lg shadow-lg mt-8 card-hover">
+            <h3 class="text-xl font-bold mb-4">
+                <i class="fas fa-chart-line"></i> Gráfico de Preços
+            </h3>
+            <canvas id="priceChart"></canvas>
+        </div>
+
+        <!-- Formulário de Swap -->
+        <div class="bg-white p-6 rounded-lg shadow-lg mt-8 card-hover">
+            <h3 class="text-xl font-bold mb-4">
+                <i class="fas fa-exchange-alt"></i> Swap de Criptomoedas
+            </h3>
+            <form @submit.prevent="performSwap" class="space-y-4">
+                <div>
+                    <label class="block text-gray-700">De:</label>
+                    <select v-model="fromCrypto" class="w-full p-2 border rounded">
+                        <option v-for="(symbol, id) in cryptos" :value="id">{{ symbol }}</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-gray-700">Para:</label>
+                    <select v-model="toCrypto" class="w-full p-2 border rounded">
+                        <option v-for="(symbol, id) in cryptos" :value="id">{{ symbol }}</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-gray-700">Quantidade:</label>
+                    <input v-model="amount" type="number" step="0.0001" class="w-full p-2 border rounded" required>
+                </div>
+                <button type="submit" class="gradient-bg text-white p-2 rounded w-full hover:bg-blue-700">
+                    <i class="fas fa-sync-alt"></i> Realizar Swap
+                </button>
+            </form>
+            <div v-if="swapResult" class="mt-4 p-4 bg-gray-100 rounded">
+                <p class="text-green-600">{{ swapResult }}</p>
+            </div>
+        </div>
+
+        <!-- Rodapé -->
+        <footer class="gradient-bg text-white text-center py-4 mt-8">
+            <div class="container mx-auto">
+                <p>&copy; 2023 CryptoSwap Pro. Todos os direitos reservados.</p>
+                <p class="mt-2">
+                    <a href="#" class="text-white mx-2 hover:text-gray-200"><i class="fab fa-twitter"></i></a>
+                    <a href="#" class="text-white mx-2 hover:text-gray-200"><i class="fab fa-facebook"></i></a>
+                    <a href="#" class="text-white mx-2 hover:text-gray-200"><i class="fab fa-instagram"></i></a>
+                </p>
+            </div>
+        </footer>
+    </div>
+
+    <select id="from_crypto" name="from_crypto" class="w-full p-2 border rounded">
+        {% for id, symbol in cryptos.items() %}
+            <option value="{{ id }}">{{ symbol }}</option>
+        {% endfor %}
+    </select>
+
+    <select id="from_crypto" name="from_crypto" class="w-full p-2 border rounded">
+        <option value="bitcoin">BTC</option>
+        <option value="ethereum">ETH</option>
+        <option value="binancecoin">BNB</option>
+        <option value="ripple">XRP</option>
+        <option value="cardano">ADA</option>
+    </select>
+
+    <script>
+        // Configuração do Firebase
+        const firebaseConfig = {
+            apiKey: "SUA_API_KEY",
+            authDomain: "SEU_DOMINIO.firebaseapp.com",
+            projectId: "SEU_PROJETO_ID",
+            storageBucket: "SEU_BUCKET.appspot.com",
+            messagingSenderId: "SEU_SENDER_ID",
+            appId: "SEU_APP_ID"
+        };
+        firebase.initializeApp(firebaseConfig);
+
+        // Configuração do Firebase Cloud Messaging
+        const messaging = firebase.messaging();
+        messaging.requestPermission().then(() => {
+            return messaging.getToken();
+        }).then(token => {
+            console.log('Token de notificação:', token);
+        }).catch(error => {
+            console.error('Erro ao solicitar permissão:', error);
+        });
+
+        messaging.onMessage(payload => {
+            console.log('Notificação recebida:', payload);
+            alert(payload.notification.title + ': ' + payload.notification.body);
+        });
+
+        // Funções de Autenticação
+        function showRegister() {
+            document.getElementById('login-form').classList.add('hidden');
+            document.getElementById('register-form').classList.remove('hidden');
+        }
+
+        function showLogin() {
+            document.getElementById('register-form').classList.add('hidden');
+            document.getElementById('login-form').classList.remove('hidden');
+        }
+
+        function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            firebase.auth().signInWithEmailAndPassword(email, password)
+                .then(() => {
+                    alert('Login realizado com sucesso!');
+                })
+                .catch(error => {
+                    alert('Erro ao fazer login: ' + error.message);
+                });
+        }
+
+        function register() {
+            const email = document.getElementById('register-email').value;
+            const password = document.getElementById('register-password').value;
+
+            firebase.auth().createUserWithEmailAndPassword(email, password)
+                .then(() => {
+                    alert('Registro realizado com sucesso!');
+                })
+                .catch(error => {
+                    alert('Erro ao registrar: ' + error.message);
+                });
+        }
+
+        // Conectar MetaMask
+        async function connectMetaMask() {
+            if (typeof window.ethereum !== "undefined") {
+                try {
+                    const accounts = await ethereum.request({ method: "eth_requestAccounts" });
+                    alert('Conectado à MetaMask: ' + accounts[0]);
+                    return accounts[0];
+                } catch (error) {
+                    alert('Erro ao conectar à MetaMask: ' + error.message);
+                }
+            } else {
+                alert('MetaMask não está instalado!');
+            }
+        }
+
+        document.getElementById('connect-wallet').addEventListener('click', connectMetaMask);
+
+        // Gráfico de Preços
+        const ctx = document.getElementById('priceChart').getContext('2d');
+const priceChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: ['01/01', '02/01', '03/01', '04/01', '05/01'], // Datas
+        datasets: [{
+            label: 'Preço (USD)',
+            data: [29000, 29500, 30000, 31000, 30500], // Preços
+            borderColor: '#0d6efd',
+            borderWidth: 2,
+            fill: false
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            x: {
+                display: true,
+                title: {
+                    display: true,
+                    text: 'Tempo'
+                }
+            },
+            y: {
+                display: true,
+                title: {
+                    display: true,
+                    text: 'Preço (USD)'
+                }
+            }
+        }
+    }
+});
+
+        // Função para atualizar o gráfico com dados da API
+        async function updateChart(cryptoId) {
+    try {
+        const response = await fetch(`https://api.coingecko.com/api/v3/coins/${cryptoId}/market_chart?vs_currency=usd&days=7`);
+        if (!response.ok) {
+            throw new Error('Erro ao buscar dados da API');
+        }
+        const data = await response.json();
+        console.log('Dados da API:', data); // Verifique os dados no console
+        const prices = data.prices;
+
+        priceChart.data.labels = prices.map(price => new Date(price[0]).toLocaleDateString());
+        priceChart.data.datasets[0].data = prices.map(price => price[1]);
+        priceChart.update();
+    } catch (error) {
+        console.error('Erro ao atualizar o gráfico:', error);
+    }
+}
+
+// Configuração do gráfico
+const ctx = document.getElementById('priceChart').getContext('2d');
+const priceChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: [], // Datas
+        datasets: [{
+            label: 'Preço (USD)',
+            data: [], // Preços
+            borderColor: '#0d6efd',
+            borderWidth: 2,
+            fill: false
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            x: {
+                display: true,
+                title: {
+                    display: true,
+                    text: 'Tempo'
+                }
+            },
+            y: {
+                display: true,
+                title: {
+                    display: true,
+                    text: 'Preço (USD)'
+                }
+            }
+        }
+    }
+});
+
+// Atualizar o gráfico quando a criptomoeda for alterada
+document.getElementById('from_crypto').addEventListener('change', (e) => {
+    updateChart(e.target.value);
+});
+
+// Inicializar o gráfico com a primeira criptomoeda
+updateChart(document.getElementById('from_crypto').value);
+    </script>
+</body>
+</html>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CryptoSwap Pro</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-4">
+        <h1 class="text-2xl font-bold mb-4">Swap de Criptomoedas</h1>
+        <form class="bg-white p-6 rounded-lg shadow-lg">
+            <div class="mb-4">
+                <label class="block text-gray-700">De:</label>
+                <select id="from_crypto" name="from_crypto" class="w-full p-2 border rounded">
+                    {% for id, symbol in cryptos.items() %}
+                        <option value="{{ id }}">{{ symbol }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700">Para:</label>
+                <select id="to_crypto" name="to_crypto" class="w-full p-2 border rounded">
+                    {% for id, symbol in cryptos.items() %}
+                        <option value="{{ id }}">{{ symbol }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700">Quantidade:</label>
+                <input type="number" class="w-full p-2 border rounded" step="0.0001" required>
+            </div>
+            <button type="submit" class="bg-blue-600 text-white p-2 rounded w-full">
+                Realizar Swap
+            </button>
+        </form>
+    </div>
+</body>
+</html>
