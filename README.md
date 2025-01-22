@@ -1,4 +1,3 @@
-CryptoSwap Pro
 CryptoSwap Pro é uma plataforma de swap de criptomoedas que permite aos usuários trocar criptomoedas de forma simples e segura. O projeto inclui uma interface moderna, gráficos interativos, autenticação de usuário, integração com carteiras digitais e notificações em tempo real.
 
 Funcionalidades
